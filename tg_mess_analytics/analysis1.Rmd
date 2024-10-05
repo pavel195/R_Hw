@@ -1,6 +1,6 @@
 ---
 title: "Анализ HTML переписок"
-author: "Ваше Имя"
+author: "Павел"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -12,14 +12,17 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Установка и загрузка необходимых библиотек
 
 ```{r libraries, message=FALSE, warning=FALSE}
-install.packages("rvest")
-install.packages("dplyr")
-install.packages("stringr")
-install.packages("ggplot2")
-install.packages("wordcloud")
-install.packages("tm")
-install.packages("tidytext")
+# Установка пакетов (удалено для предотвращения зависания)
+# install.packages("rvest")
+# install.packages("dplyr")
+# install.packages("stringr")
+# install.packages("ggplot2")
+# install.packages("wordcloud")
+# install.packages("tm")
+# install.packages("tidytext")
+install.packages("furrr")
 
+# Загрузка библиотек
 library(rvest)
 library(dplyr)
 library(stringr)
@@ -27,24 +30,27 @@ library(ggplot2)
 library(wordcloud)
 library(tm)
 library(tidytext)
+library(furrr)
 ```
 
-## Загрузка всех HTML файлов из папки
+## Загрузка части HTML файлов из папки асинхронно
 
-```{r load-data}
+```{r load-data, warning=FALSE}
+plan(multisession)  # Планирование асинхронных задач с использованием нескольких сессий
+
 html_files <- list.files(path = "messages", pattern = "*.html", full.names = TRUE)
+
+# Ограничение количества файлов для обработки (например, первые 10 файлов)
+html_files <- head(html_files, 10)
 
 # Проверка на наличие HTML файлов
 if (length(html_files) == 0) {
   stop("Нет HTML файлов в указанной папке 'messages'. Проверьте путь и наличие файлов.")
 }
 
-# Инициализация пустого data.frame для хранения всех сообщений
-all_chat_data <- data.frame(Date = character(), From = character(), Text = character(), stringsAsFactors = FALSE)
-
-# Обработка каждого HTML файла
-for (html_file in html_files) {
-  chat_page <- read_html(html_file)
+# Функция для обработки одного HTML файла
+process_html_file <- function(html_file) {
+  chat_page <- rvest::read_html(html_file)
 
   # Извлечение данных о сообщениях
   messages <- chat_page %>% html_nodes(".message.default")
@@ -76,10 +82,17 @@ for (html_file in html_files) {
     # Фильтрация пустых сообщений
     chat_data <- chat_data %>% filter(Text != "")
 
-    # Добавление данных в общий data.frame
-    all_chat_data <- bind_rows(all_chat_data, chat_data)
+    return(chat_data)
+  } else {
+    return(NULL)
   }
 }
+
+# Асинхронная обработка всех HTML файлов
+all_chat_data_list <- future_map(html_files, process_html_file)
+
+# Объединение результатов в один data.frame
+all_chat_data <- bind_rows(all_chat_data_list)
 
 # Проверка на наличие данных для анализа
 if (nrow(all_chat_data) == 0) {
@@ -208,36 +221,5 @@ if (nrow(avg_message_length_by_user) > 0) {
     theme_minimal() +
     labs(title = "Средняя длина сообщения по пользователям", x = "Пользователь", y = "Средняя длина сообщения") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-}
-```
-
-### Часовая активность сообщений
-
-```{r messages-by-hour}
-all_chat_data$Hour <- format(as.POSIXct(all_chat_data$Date, format = "%d.%m.%Y %H:%M:%S"), "%H")
-messages_by_hour <- all_chat_data %>%
-  group_by(Hour) %>%
-  summarise(Count = n()) %>%
-  arrange(Hour)
-
-if (nrow(messages_by_hour) > 0) {
-  ggplot(messages_by_hour, aes(x = Hour, y = Count)) +
-    geom_line(group = 1, color = "darkgreen") +
-    geom_point(color = "darkgreen") +
-    theme_minimal() +
-    labs(title = "Часовая активность сообщений", x = "Час", y = "Количество сообщений")
-}
-```
-
-### Доля сообщений каждого пользователя в общем объеме
-
-```{r user-message-share}
-if (nrow(messages_by_user) > 0) {
-  ggplot(messages_by_user, aes(x = "", y = Count, fill = From)) +
-    geom_bar(width = 1, stat = "identity") +
-    coord_polar(theta = "y") +
-    theme_minimal() +
-    labs(title = "Доля сообщений каждого пользователя", x = NULL, y = NULL) +
-    theme(axis.text.x = element_blank(), axis.ticks = element_blank())
 }
 ```
