@@ -1,4 +1,17 @@
-# Устанавливаем и загружаем необходимые библиотеки
+---
+title: "Анализ HTML переписок"
+author: "Ваше Имя"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Установка и загрузка необходимых библиотек
+
+```{r libraries, message=FALSE, warning=FALSE}
 install.packages("rvest")
 install.packages("dplyr")
 install.packages("stringr")
@@ -6,7 +19,6 @@ install.packages("ggplot2")
 install.packages("wordcloud")
 install.packages("tm")
 install.packages("tidytext")
-install.packages("textstem")
 
 library(rvest)
 library(dplyr)
@@ -15,9 +27,11 @@ library(ggplot2)
 library(wordcloud)
 library(tm)
 library(tidytext)
-library(textstem)
+```
 
-# Загрузка всех HTML файлов из папки
+## Загрузка всех HTML файлов из папки
+
+```{r load-data}
 html_files <- list.files(path = "messages", pattern = "*.html", full.names = TRUE)
 
 # Проверка на наличие HTML файлов
@@ -77,8 +91,13 @@ print(all_chat_data)
 
 # Сохранение данных в CSV файл
 write.csv(all_chat_data, "all_chat_data.csv", row.names = FALSE)
+```
 
-# Анализ текста: создание облака слов
+## Анализ текста и визуализация
+
+### Облако слов
+
+```{r wordcloud, warning=FALSE}
 # Объединение всех сообщений в один текст
 all_text <- paste(all_chat_data$Text, collapse = " ")
 
@@ -88,9 +107,6 @@ corpus <- tm_map(corpus, content_transformer(tolower))
 corpus <- tm_map(corpus, removePunctuation)
 corpus <- tm_map(corpus, removeNumbers)
 corpus <- tm_map(corpus, removeWords, stopwords("russian"))
-
-# Лемматизация текста
-corpus <- tm_map(corpus, content_transformer(lemmatize_strings))
 
 # Создание матрицы частоты слов и построение облака слов
 if (length(corpus) > 0) {
@@ -103,104 +119,101 @@ if (length(corpus) > 0) {
   if (nrow(df_word_freq) > 0) {
     # Построение облака слов
     set.seed(1234)
-    png("wordcloud.png")
     wordcloud(words = df_word_freq$word, freq = df_word_freq$freq, min.freq = 2,
               max.words = 100, random.order = FALSE, colors = brewer.pal(8, "Dark2"))
-    dev.off()
   } else {
     warning("Нет слов для построения облака слов.")
   }
 } else {
   warning("Корпус пуст, невозможно построить облако слов.")
 }
+```
 
-# Построение графиков частоты слов
-# Топ-10 самых частотных слов
+### Топ-10 самых частотных слов
+
+```{r top-words}
 if (nrow(df_word_freq) > 0) {
   top_words <- head(df_word_freq, 10)
-  png("top_words.png")
   ggplot(top_words, aes(x = reorder(word, -freq), y = freq)) +
     geom_bar(stat = "identity", fill = "steelblue") +
     theme_minimal() +
     labs(title = "Топ-10 самых частотных слов", x = "Слово", y = "Частота") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  dev.off()
 }
+```
 
-# График слов, распределенных по пользователям
+### График слов, распределенных по пользователям
+
+```{r words-by-user}
 words_by_user <- all_chat_data %>%
   unnest_tokens(word, Text) %>%
   filter(!word %in% stopwords("russian")) %>%
-  mutate(word = lemmatize_strings(word)) %>%
   count(From, word, sort = TRUE)
 
 if (nrow(words_by_user) > 0) {
   top_words_by_user <- words_by_user %>% group_by(From) %>% slice_max(order_by = n, n = 5)
-  png("words_by_user.png")
   ggplot(top_words_by_user, aes(x = reorder(word, -n), y = n, fill = From)) +
     geom_bar(stat = "identity", show.legend = FALSE) +
     facet_wrap(~From, scales = "free") +
     theme_minimal() +
     labs(title = "Топ-5 слов по пользователям", x = "Слово", y = "Частота") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  dev.off()
 }
+```
 
-# Метрики анализа текста
-# Общее количество сообщений
-total_messages <- nrow(all_chat_data)
+### Количество сообщений по пользователям
 
-# Количество сообщений по пользователям
+```{r messages-by-user}
 messages_by_user <- all_chat_data %>%
   group_by(From) %>%
   summarise(Count = n()) %>%
   arrange(desc(Count))
 
-print(paste("Общее количество сообщений:", total_messages))
+print(paste("Общее количество сообщений:", nrow(all_chat_data)))
 print(messages_by_user)
 
-# Построение графика количества сообщений по пользователям
 if (nrow(messages_by_user) > 0) {
-  png("messages_by_user.png")
   ggplot(messages_by_user, aes(x = reorder(From, -Count), y = Count)) +
     geom_bar(stat = "identity", fill = "tomato") +
     theme_minimal() +
     labs(title = "Количество сообщений по пользователям", x = "Пользователь", y = "Количество сообщений") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  dev.off()
 }
+```
 
-# Дополнительные графики
-# Распределение длины сообщений
+### Распределение длины сообщений
+
+```{r message-length-distribution}
 all_chat_data$MessageLength <- nchar(all_chat_data$Text)
 
 if (nrow(all_chat_data) > 0) {
-  png("message_length_distribution.png")
   ggplot(all_chat_data, aes(x = MessageLength)) +
     geom_histogram(binwidth = 10, fill = "skyblue", color = "black") +
     theme_minimal() +
     labs(title = "Распределение длины сообщений", x = "Длина сообщения (символы)", y = "Количество сообщений")
-  dev.off()
 }
+```
 
-# Средняя длина сообщения по пользователям
+### Средняя длина сообщения по пользователям
+
+```{r avg-message-length-by-user}
 avg_message_length_by_user <- all_chat_data %>%
   group_by(From) %>%
   summarise(AvgLength = mean(MessageLength)) %>%
   arrange(desc(AvgLength))
 
 if (nrow(avg_message_length_by_user) > 0) {
-  png("avg_message_length_by_user.png")
   ggplot(avg_message_length_by_user, aes(x = reorder(From, -AvgLength), y = AvgLength)) +
     geom_bar(stat = "identity", fill = "purple") +
     theme_minimal() +
     labs(title = "Средняя длина сообщения по пользователям", x = "Пользователь", y = "Средняя длина сообщения") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  dev.off()
 }
+```
 
-# Дополнительные диаграммы
-# Часовая активность сообщений
+### Часовая активность сообщений
+
+```{r messages-by-hour}
 all_chat_data$Hour <- format(as.POSIXct(all_chat_data$Date, format = "%d.%m.%Y %H:%M:%S"), "%H")
 messages_by_hour <- all_chat_data %>%
   group_by(Hour) %>%
@@ -208,23 +221,23 @@ messages_by_hour <- all_chat_data %>%
   arrange(Hour)
 
 if (nrow(messages_by_hour) > 0) {
-  png("messages_by_hour.png")
   ggplot(messages_by_hour, aes(x = Hour, y = Count)) +
     geom_line(group = 1, color = "darkgreen") +
     geom_point(color = "darkgreen") +
     theme_minimal() +
     labs(title = "Часовая активность сообщений", x = "Час", y = "Количество сообщений")
-  dev.off()
 }
+```
 
-# Доля сообщений каждого пользователя в общем объеме
+### Доля сообщений каждого пользователя в общем объеме
+
+```{r user-message-share}
 if (nrow(messages_by_user) > 0) {
-  png("user_message_share.png")
   ggplot(messages_by_user, aes(x = "", y = Count, fill = From)) +
     geom_bar(width = 1, stat = "identity") +
     coord_polar(theta = "y") +
     theme_minimal() +
     labs(title = "Доля сообщений каждого пользователя", x = NULL, y = NULL) +
     theme(axis.text.x = element_blank(), axis.ticks = element_blank())
-  dev.off()
 }
+```
