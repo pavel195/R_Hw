@@ -133,4 +133,20 @@ zh_report <- c(
   "- zh_message_length.png\n"
 )
 
-writeLines(zh_report, "zh_report.md") 
+writeLines(zh_report, "zh_report.md")
+
+# Создание содержимого Rmd файла
+
+rmd_content <- '---
+title: "Анализ сообщений Telegram"
+author: "Zh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+Данный отчёт демонстрирует статистический анализ сообщений пользователя Zh.'
+
+# Запись содержимого в файл .Rmd
+writeLines(rmd_content, "zh_report.Rmd")
+
+

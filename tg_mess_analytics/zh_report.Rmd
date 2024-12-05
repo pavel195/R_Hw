@@ -1,0 +1,83 @@
+--- 
+title: "Анализ сообщений Telegram"
+author: "Павел Чипкинеев"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+# Установка и загрузка необходимых пакетов
+```{r }
+library(tidyverse)
+library(tidytext)
+library(wordcloud2)
+library(udpipe)
+library(lubridate)
+library(ggplot2)
+library(htmlwidgets)
+```
+
+```{r }
+# Загрузка русской модели для лемматизации
+udmodel <- udpipe_download_model(language = "russian")
+udmodel <- udpipe_load_model(udmodel$file_model)
+```
+
+```{r }
+# Чтение данных
+df <- read.csv("all_chat_data.csv", 
+               encoding = "UTF-8",
+               col.names = c("datetime", "user", "text"))
+```
+
+```{r }
+# Конвертация времени
+df$datetime <- as.POSIXct(df$datetime, format = "%d.%m.%Y %H:%M:%S")
+
+# Фильтрация сообщений пользователя Zh
+zh_messages <- df %>%
+  filter(user == "Zh")
+```
+
+
+# Токенизация и лемматизация сообщений Zh
+```{r }
+zh_text_analysis <- zh_messages %>%
+  select(text) %>%
+  unnest_tokens(word, text) %>%
+  # Удаление стоп-слов
+  anti_join(get_stopwords(language = "ru")) %>%
+  # Удаление цифр и коротких слов
+  filter(!str_detect(word, "\\d+"),
+         str_length(word) > 2)
+
+# Лемматизация с помощью udpipe
+annotations <- udpipe_annotate(udmodel, x = unique(zh_text_analysis$word))
+lemmas <- as.data.frame(annotations) %>%
+  select(token, lemma)
+
+# Объединение с лемматизированными словами
+zh_text_analysis <- zh_text_analysis %>%
+  left_join(lemmas, by = c("word" = "token"))
+```
+
+
+# Подсчет частоты слов
+```{r }
+zh_word_frequencies <- zh_text_analysis %>%
+  count(lemma, sort = TRUE) %>%
+  filter(!is.na(lemma))
+```
+
+# Создание облака слов для моих сообщений
+```{r }
+wordcloud <- wordcloud2(zh_word_frequencies[1:50,], 
+                       size = 0.5,
+                       color = 'random-dark',
+                       backgroundColor = "white",
+                       rotateRatio = 0.3,
+                       minRotation = -pi/4,
+                       maxRotation = pi/4)
+# Сохранение облака слов в HTML
+saveWidget(wordcloud, "zh_wordcloud.html", selfcontained = TRUE)
+```
