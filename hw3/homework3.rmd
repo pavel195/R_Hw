@@ -1,0 +1,166 @@
+---
+title: "Домашнее задание №3"
+author: "Павел Чипкинеев"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Задание 1
+
+```{r}
+# Установка параметров
+k <- 10
+n <- 30
+size <- 1000 # размер выборки
+```
+
+### Биномиальное распределение
+
+```{r}
+# Параметры биномиального распределения
+p <- k/n
+
+# Генерация выборки
+binom_sample <- rbinom(size, n, p)
+
+# Вычисление статистик
+binom_stats <- list(
+  mean = mean(binom_sample),
+  var = var(binom_sample),
+  sd = sd(binom_sample),
+  median = median(binom_sample),
+  mode = as.numeric(names(sort(table(binom_sample), decreasing = TRUE)[1]))
+)
+
+# Визуализация
+par(mfrow=c(1,2))
+hist(binom_sample, probability = TRUE, main = "Плотность биномиального распределения")
+lines(density(binom_sample), col = "red")
+plot(ecdf(binom_sample), main = "Функция распределения")
+```
+
+### Хи-квадрат распределение
+
+```{r}
+# Параметры хи-квадрат
+df <- (n-1) + k
+chi_sample <- rchisq(size, df)
+
+# Вычисление статистик
+chi_stats <- list(
+  mean = mean(chi_sample),
+  var = var(chi_sample),
+  sd = sd(chi_sample),
+  median = median(chi_sample),
+  mode = as.numeric(names(sort(table(round(chi_sample, 1)), decreasing = TRUE)[1]))
+)
+
+# Визуализация
+par(mfrow=c(1,2))
+hist(chi_sample, probability = TRUE, main = "Плотность хи-квадрат")
+lines(density(chi_sample), col = "red")
+plot(ecdf(chi_sample), main = "Функция распределения")
+```
+
+### Нормальное распределение
+
+```{r}
+# Параметры нормального распределения
+m <- k * 100
+sigma <- sqrt(n + k)
+norm_sample <- rnorm(size, m, sigma)
+
+# Вычисление статистик
+norm_stats <- list(
+  mean = mean(norm_sample),
+  var = var(norm_sample),
+  sd = sd(norm_sample),
+  median = median(norm_sample),
+  mode = as.numeric(names(sort(table(round(norm_sample, 1)), decreasing = TRUE)[1]))
+)
+
+# Визуализация
+par(mfrow=c(1,2))
+hist(norm_sample, probability = TRUE, main = "Плотность нормального")
+lines(density(norm_sample), col = "red")
+plot(ecdf(norm_sample), main = "Функция распределения")
+```
+
+# Задание 2
+
+## Задача 2.1: Автомобили
+
+```{r}
+# а) Вероятность ровно двух фирменных из ремонтируемых
+prob_2_brand <- dhyper(2, 35, 25, 5)
+
+# б) Вероятность хотя бы одного фирменного
+prob_at_least_1 <- 1 - dhyper(0, 35, 25, 5)
+
+cat("Вероятность ровно двух фирменных:", round(prob_2_brand, 4), "\n")
+cat("Вероятность хотя бы одного фирменного:", round(prob_at_least_1, 4))
+```
+
+## Задача 2.2: Дни рождения
+
+```{r}
+# а) Вероятность совпадения среди 390 человек
+prob_birthday <- 1 - prod(1 - 1:389/365)
+
+# б) Поиск количества людей для вероятности > 0.5
+n <- 1
+while((1 - prod(1 - 1:(n-1)/365)) <= 0.5) {
+  n <- n + 1
+}
+
+cat("Вероятность совпадения в группе 390 человек:", round(prob_birthday, 4), "\n")
+cat("Необходимое количество человек для вероятности > 0.5:", n)
+```
+
+## Задача 2.3: Покер
+
+```{r}
+# Функция для вычисления комбинаций
+combinations <- function(n, r) {
+  factorial(n) / (factorial(r) * factorial(n - r))
+}
+
+# Общее количество возможных рук
+total_hands <- combinations(52, 5)
+
+# Вычисление вероятностей
+pair_prob <- (13 * combinations(4, 2) * combinations(12, 3) * 4^3) / total_hands
+two_pairs_prob <- (combinations(13, 2) * combinations(4, 2) * combinations(4, 2) * combinations(11, 1) * 4) / total_hands
+three_kind_prob <- (13 * combinations(4, 3) * combinations(12, 2) * 4^2) / total_hands
+straight_prob <- (10 * 4^5) / total_hands
+flush_prob <- (4 * combinations(13, 5) - 40) / total_hands
+full_house_prob <- (13 * combinations(4, 3) * 12 * combinations(4, 2)) / total_hands
+four_kind_prob <- (13 * combinations(4, 4) * 12 * 4) / total_hands
+straight_flush_prob <- 40 / total_hands
+royal_flush_prob <- 4 / total_hands
+
+# Вероятность старшей карты
+high_card_prob <- 1 - (pair_prob + two_pairs_prob + three_kind_prob + straight_prob + 
+                       flush_prob + full_house_prob + four_kind_prob + straight_flush_prob)
+
+# Создание таблицы результатов
+results <- data.frame(
+  Комбинация = c("Пара", "Две пары", "Тройка", "Стрит", "Флэш", "Фулл-хаус", 
+                 "Каре", "Стрит-флэш", "Роял-флэш", "Старшая карта"),
+  Вероятность = c(pair_prob, two_pairs_prob, three_kind_prob, straight_prob,
+                  flush_prob, full_house_prob, four_kind_prob, straight_flush_prob,
+                  royal_flush_prob, high_card_prob)
+)
+
+# Вывод результатов в виде таблицы
+knitr::kable(results, digits = 4)
+```

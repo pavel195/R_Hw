@@ -1,0 +1,272 @@
+---
+title: "Анализ данных о депрессии студентов"
+author: "Павел"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+---
+
+# Введение
+
+В данном отчете проводится анализ данных о депрессии среди студентов. Исследование направлено на выявление взаимосвязей между академическими показателями, образом жизни и психическим здоровьем студентов.
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(dplyr)
+
+# Создание директории для графиков
+if (!dir.exists("plots")) {
+    dir.create("plots")
+}
+```
+
+# Загрузка и подготовка данных
+
+```{r}
+df <- read.csv("Student_Depression_Dataset.csv")
+df <- df[1:1000, ]
+```
+
+*В анализе используется выборка из `r nrow(df)` студентов.*
+
+# Структура данных
+
+```{r}
+student_lists <- list(
+    demographics = list(
+        age = df$Age,
+        gender = df$Gender,
+        city = df$City
+    ),
+    academic = list(
+        cgpa = df$CGPA,
+        degree = df$Degree,
+        study_hours = df[["Work/Study Hours"]],
+        academic_pressure = df[["Academic Pressure"]]
+    ),
+    lifestyle = list(
+        sleep = df[["Sleep Duration"]],
+        diet = df[["Dietary Habits"]]
+    ),
+    mental_health = list(
+        depression = df$Depression,
+        family_history = df[["Family History of Mental Illness"]]
+    )
+)
+
+str(student_lists)
+```
+
+# Демографический анализ
+
+```{r}
+# Статистика по возрасту
+age_summary <- summary(student_lists$demographics$age)
+print("Статистика по возрасту:")
+print(age_summary)
+
+# Визуализация возраста
+ggplot(df, aes(x=Age)) +
+    geom_histogram(binwidth=2, fill="skyblue", color="black") +
+    labs(title="Распределение возраста студентов",
+         x="Возраст",
+         y="Количество") +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title = element_text(size=12)
+    )
+
+# Сохранение графика
+ggsave("plots/age_distribution.png", width = 8, height = 6, dpi = 120)
+```
+
+*Анализ демографических данных показывает:*
+
+- Средний возраст студентов: `r round(mean(student_lists$demographics$age), 1)` лет
+- Медианный возраст: `r median(student_lists$demographics$age)` лет
+- Возрастной диапазон: от `r min(student_lists$demographics$age)` до `r max(student_lists$demographics$age)` лет
+
+# Академические показатели
+
+```{r}
+# Статистика по CGPA
+cgpa_summary <- summary(student_lists$academic$cgpa)
+print("Статистика по CGPA:")
+print(cgpa_summary)
+
+# График CGPA по городам
+ggplot(df, aes(x=City, y=CGPA)) +
+    geom_bar(stat="identity", fill="lightgreen") +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size=10),
+        plot.title = element_text(size=16, face="bold"),
+        axis.title = element_text(size=12)
+    ) +
+    labs(title="CGPA по городам",
+         x="Город",
+         y="Средний CGPA")
+
+ggsave("plots/cgpa_by_city.png", width = 10, height = 6, dpi = 120)
+
+# Анализ академического давления
+pressure_summary <- table(df$`Academic Pressure`)
+print("\nРаспределение академического давления:")
+print(pressure_summary)
+```
+
+*Ключевые выводы по академическим показателям:*
+
+- Средний CGPA: `r round(mean(student_lists$academic$cgpa, na.rm=TRUE), 2)`
+- `r round(sum(df[["Academic Pressure"]] > 7) / length(df[["Academic Pressure"]]) * 100, 1)`% студентов испытывают высокий уровень академического давления (>7)
+- Наблюдаются существенные различия в CGPA между городами
+
+# Анализ образа жизни
+
+```{r}
+# Анализ сна и диеты
+sleep_summary <- summary(student_lists$lifestyle$sleep)
+print("Статистика по продолжительности сна (часов):")
+print(sleep_summary)
+
+diet_distribution <- table(student_lists$lifestyle$diet)
+print("\nРаспределение диетических привычек:")
+print(diet_distribution)
+```
+
+*Выводы по образу жизни:*
+
+- Средняя продолжительность сна: `r round(mean(student_lists$lifestyle$sleep, na.rm=TRUE), 1)` часов
+- Наиболее распространенный тип диеты: `r names(which.max(table(student_lists$lifestyle$diet)))`
+
+# Анализ психического здоровья
+
+```{r}
+# Анализ депрессии
+depression_rate <- mean(student_lists$mental_health$depression) * 100
+
+# График зависимости депрессии от возраста и CGPA
+ggplot(df, aes(x=Age, y=CGPA, color=factor(Depression))) +
+    geom_point(size=3, alpha=0.6) +
+    theme_minimal() +
+    labs(title="Зависимость CGPA от возраста и наличия депрессии",
+         x="Возраст",
+         y="CGPA",
+         color="Депрессия") +
+    scale_color_manual(values=c("0"="green", "1"="red"),
+                      labels=c("0"="Нет", "1"="Есть")) +
+    theme(
+        plot.title = element_text(size=16, face="bold"),
+        axis.title = element_text(size=12),
+        legend.position = "right"
+    )
+
+ggsave("plots/depression_analysis.png", width = 8, height = 6, dpi = 120)
+
+# Корреляционный анализ
+correlation <- cor(df$CGPA, df$Depression)
+```
+
+*Ключевые выводы по психическому здоровью:*
+
+- `r round(depression_rate, 1)`% студентов имеют признаки депрессии
+- Корреляция между CGPA и депрессией: `r round(correlation, 3)`
+- Тип связи между CGPA и депрессией: `r if(correlation < 0) "отрицат��льная" else "положительная"`
+
+# Дополнительный анализ
+
+```{r}
+# Корреляционный анализ числовых показателей
+numeric_data <- df[sapply(df, is.numeric)]
+correlations <- cor(numeric_data, use="complete.obs")
+print("Корреляции между числовыми показателями:")
+print(round(correlations, 2))
+```
+
+# Сравнение sapply и lapply
+
+В этом разделе мы рассмотрим разницу между функциями sapply и lapply на наших данных.
+
+```{r}
+# Создадим числовой подсписок для демонстрации
+numeric_lists <- list(
+    age = student_lists$demographics$age,
+    cgpa = student_lists$academic$cgpa,
+    sleep = student_lists$lifestyle$sleep,
+    pressure = student_lists$academic$academic_pressure
+)
+
+# Демонстрация lapply
+cat("=== Результат lapply ===\n")
+lapply_result <- lapply(numeric_lists, function(x) {
+    c(
+        среднее = mean(x, na.rm = TRUE),
+        медиана = median(x, na.rm = TRUE),
+        ст_отклонение = sd(x, na.rm = TRUE)
+    )
+})
+print(lapply_result)
+
+# Демонстрация sapply
+cat("\n=== Результат sapply ===\n")
+sapply_result <- sapply(numeric_lists, function(x) {
+    c(
+        среднее = mean(x, na.rm = TRUE),
+        медиана = median(x, na.rm = TRUE),
+        ст_отклонение = sd(x, na.rm = TRUE)
+    )
+})
+print(sapply_result)
+
+# Пример с разными типами данных
+cat("\n=== Пример с разными типами данных ===\n")
+mixed_list <- list(
+    числовой = student_lists$demographics$age,
+    текстовый = student_lists$demographics$city,
+    логический = student_lists$mental_health$depression
+)
+
+cat("lapply для подсчета уникальных значений:\n")
+unique_lapply <- lapply(mixed_list, function(x) length(unique(x)))
+print(unique_lapply)
+
+cat("\nsapply для подсчета уникальных значений:\n")
+unique_sapply <- sapply(mixed_list, function(x) length(unique(x)))
+print(unique_sapply)
+```
+
+*Основные различия между lapply и sapply:*
+
+1. **Формат вывода:**
+   - lapply всегда возвращает список
+   - sapply пытается упростить вывод (вектор или матрицу)
+
+2. **Удобство использования:**
+   - sapply даёт более читаемый вывод для однородных результатов
+   - lapply сохраняет структуру списка, что может быть полезно для дальнейшей обработки
+
+3. **Применение:**
+   - lapply лучше использовать, когда нужно сохранить структуру списка
+   - sapply удобнее для получения компактного вывода и создания таблиц
+
+# Заключение
+
+Проведенный анализ выявил следующие ключевые моменты:
+
+1. Демографические особенности:
+   - Типичный возраст студентов: `r round(mean(student_lists$demographics$age), 1)` ± `r round(sd(student_lists$demographics$age), 1)` лет
+
+2. Академические показатели:
+   - Средний CGPA: `r round(mean(student_lists$academic$cgpa, na.rm=TRUE), 2)`
+   - Значительная часть студентов испытывает высокое академическое давление
+
+3. Психическое здоровье:
+   - Существенная доля студентов (`r round(depression_rate, 1)`%) имеет признаки депрессии
+   - Выявлена `r if(correlation < 0) "отрицательная" else "положительная"` связь между успеваемостью и депрессией
+
+*Все графики сохранены в директории 'plots'*
